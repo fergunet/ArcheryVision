@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMdiSubWindow,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +39,7 @@ class VideoLabel(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("background-color: black; color: #888;")
         self.setMinimumSize(160, 90)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._source_pixmap: QPixmap | None = None
         self.setText(PLACEHOLDER_TEXT)
 
@@ -83,11 +85,12 @@ class CameraViewWidget(QWidget):
 
         toolbar_frame = QFrame()
         toolbar_frame.setLayout(toolbar)
+        toolbar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(2, 2, 2, 2)
-        layout.addWidget(toolbar_frame)
-        layout.addWidget(self.video_label)
+        layout.addWidget(toolbar_frame, 0)
+        layout.addWidget(self.video_label, 1)
         self.setLayout(layout)
 
         self._last_frame: np.ndarray | None = None
