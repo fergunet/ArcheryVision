@@ -121,7 +121,21 @@ class CameraManager:
         self.slots: list[CameraSlot] = [CameraSlot(i) for i in range(MAX_CAMERAS)]
 
     def available_devices(self) -> list[int]:
-        return detect_available_cameras()
+        """Dispositivos detectables más los ya asignados a un slot activo.
+
+        Una cámara en uso por un CameraWorker no se puede volver a abrir
+        para probarla (el sistema operativo bloquea el acceso exclusivo),
+        así que el sondeo la descartaría aunque siga conectada. Se añaden
+        de vuelta los dispositivos ya conectados para no perderlos del
+        desplegable al pulsar "Buscar cámaras".
+        """
+        probed = set(detect_available_cameras())
+        connected = {
+            slot.device_index
+            for slot in self.slots
+            if slot.is_connected and slot.device_index is not None
+        }
+        return sorted(probed | connected)
 
     def assign_device(self, slot_index: int, device_index: int | None) -> CameraSlot:
         slot = self.slots[slot_index]
