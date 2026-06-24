@@ -88,6 +88,12 @@ class SlotControl(QGroupBox):
     def _on_name_edited(self) -> None:
         self.name_changed.emit(self.slot_index, self.name_edit.text())
 
+    def set_device(self, device_index: int | None) -> None:
+        idx = self.device_combo.findData(device_index)
+        self.device_combo.blockSignals(True)
+        self.device_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.device_combo.blockSignals(False)
+
     def set_available_devices(self, devices: list[int]) -> None:
         current = self.device_combo.currentData()
         self.device_combo.blockSignals(True)
@@ -200,6 +206,9 @@ class ControlsPanel(QWidget):
 
     def set_slot_delay(self, slot_index: int, seconds: float) -> None:
         self.slot_controls[slot_index].set_delay(seconds)
+
+    def set_slot_device(self, slot_index: int, device_index: int | None) -> None:
+        self.slot_controls[slot_index].set_device(device_index)
 
     def _choose_output_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Carpeta de salida de clips")

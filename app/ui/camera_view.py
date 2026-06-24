@@ -118,6 +118,14 @@ class CameraViewWidget(QWidget):
 
 
 class CameraSubWindow(QMdiSubWindow):
+    """Ventana flotante de cámara.
+
+    Recuerda su última geometría "normal" (no maximizada) para que, al
+    restaurar la sesión, una ventana maximizada se pueda volver a
+    maximizar y, si el usuario la desmaximiza luego, recupere un tamaño
+    sensato en vez del que tuviera por casualidad en ese instante.
+    """
+
     def __init__(self, slot_index: int, title: str):
         super().__init__()
         self.slot_index = slot_index
@@ -125,3 +133,18 @@ class CameraSubWindow(QMdiSubWindow):
         self.setWidget(self.view)
         self.setWindowTitle(title)
         self.resize(480, 320)
+        self._normal_geometry = self.geometry()
+
+    @property
+    def normal_geometry(self):
+        return self._normal_geometry
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if not self.isMaximized():
+            self._normal_geometry = self.geometry()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if not self.isMaximized():
+            self._normal_geometry = self.geometry()

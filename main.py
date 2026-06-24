@@ -12,7 +12,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO)
     app = QApplication(sys.argv)
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     return app.exec()
 
 

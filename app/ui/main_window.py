@@ -77,6 +77,8 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
 
         restored_geometry = self._restore_config()
+        self._refresh_available_devices()
+        self._apply_restored_devices_to_ui()
         for sub in self.sub_windows:
             sub.show()
         if not restored_geometry:
@@ -88,7 +90,6 @@ class MainWindow(QMainWindow):
         self.mdi_area.subWindowActivated.connect(lambda _sw: self.hrm_overlay.raise_())
 
         self._connect_signals()
-        self._refresh_available_devices()
 
         self.display_timer = QTimer(self)
         self.display_timer.timeout.connect(self._update_displays)
@@ -120,6 +121,7 @@ class MainWindow(QMainWindow):
         self.controls_panel.set_slot_status(slot_index, slot.is_connected)
         if not slot.is_connected:
             self.sub_windows[slot_index].view.clear()
+        self._persist_camera_settings(slot_index)
 
     def _on_delay_changed(self, slot_index: int, seconds: float) -> None:
         self.camera_manager.slots[slot_index].delay_seconds = seconds
@@ -138,11 +140,16 @@ class MainWindow(QMainWindow):
     def _persist_camera_settings(self, slot_index: int) -> None:
         slot = self.camera_manager.slots[slot_index]
         self.config_store.save_camera_settings(
-            slot_index, slot.name, slot.delay_seconds, slot.rotation_degrees
+            slot_index, slot.name, slot.delay_seconds, slot.rotation_degrees, slot.device_index
         )
 
     def _restore_config(self) -> bool:
-        """Aplica delay/nombre/rotación y geometría de ventana guardados.
+        """Aplica delay/nombre/rotación/cámara y geometría de ventana guardados.
+
+        La cámara asignada se restaura aquí directamente sobre CameraManager
+        (no a través de _on_device_changed) porque el desplegable del panel
+        de control todavía no tiene poblada la lista de dispositivos en este
+        punto; se refleja en la UI después, en _apply_restored_devices_to_ui().
 
         Devuelve True si había geometría de ventana guardada, para que el
         llamador decida si hace falta el tileSubWindows() por defecto.
@@ -159,13 +166,25 @@ class MainWindow(QMainWindow):
                 self.controls_panel.set_slot_delay(i, slot.delay_seconds)
                 self.sub_windows[i].view.set_rotation(slot.rotation_degrees)
                 self.sub_windows[i].setWindowTitle(slot.name)
+                if cam_settings["device_index"] is not None:
+                    self.camera_manager.assign_device(i, cam_settings["device_index"])
 
-            geometry = self.config_store.load_window_geometry(i)
-            if geometry is not None:
-                x, y, width, height = geometry
-                self.sub_windows[i].setGeometry(x, y, width, height)
+            window_state = self.config_store.load_window_geometry(i)
+            if window_state is not None:
+                sub = self.sub_windows[i]
+                sub.setGeometry(
+                    window_state["x"], window_state["y"], window_state["width"], window_state["height"]
+                )
+                if window_state["maximized"]:
+                    sub.showMaximized()
                 any_geometry_restored = True
         return any_geometry_restored
+
+    def _apply_restored_devices_to_ui(self) -> None:
+        for slot in self.camera_manager.slots:
+            if slot.device_index is not None:
+                self.controls_panel.set_slot_device(slot.slot_index, slot.device_index)
+                self.controls_panel.set_slot_status(slot.slot_index, slot.is_connected)
 
     def _on_clip_duration_changed(self, seconds: int) -> None:
         self.clip_duration_seconds = seconds
@@ -214,9 +233,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         for sub in self.sub_windows:
-            geo = sub.geometry()
+            geo = sub.normal_geometry
             self.config_store.save_window_geometry(
-                sub.slot_index, geo.x(), geo.y(), geo.width(), geo.height()
+                sub.slot_index, geo.x(), geo.y(), geo.width(), geo.height(), sub.isMaximized()
             )
         self.config_store.sync()
         self.display_timer.stop()
