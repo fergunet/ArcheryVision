@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -32,10 +33,15 @@ DEFAULT_CLIP_SECONDS = 10
 class SlotControl(QGroupBox):
     device_changed = Signal(int, object)  # slot_index, device_index|None
     delay_changed = Signal(int, float)  # slot_index, seconds
+    name_changed = Signal(int, str)  # slot_index, name
 
     def __init__(self, slot_index: int):
         super().__init__(f"Cámara {slot_index + 1}")
         self.slot_index = slot_index
+
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText(f"Cámara {slot_index + 1}")
+        self.name_edit.editingFinished.connect(self._on_name_edited)
 
         self.device_combo = QComboBox()
         self.device_combo.addItem(NO_DEVICE_LABEL, None)
@@ -60,10 +66,27 @@ class SlotControl(QGroupBox):
         delay_row.addWidget(self.delay_spin)
 
         layout = QVBoxLayout()
+        layout.addWidget(self.name_edit)
         layout.addWidget(self.device_combo)
         layout.addLayout(delay_row)
         layout.addWidget(self.status_label)
         self.setLayout(layout)
+
+    def set_name(self, name: str) -> None:
+        self.name_edit.blockSignals(True)
+        self.name_edit.setText(name)
+        self.name_edit.blockSignals(False)
+
+    def set_delay(self, seconds: float) -> None:
+        self.delay_slider.blockSignals(True)
+        self.delay_spin.blockSignals(True)
+        self.delay_slider.setValue(int(seconds))
+        self.delay_spin.setValue(int(seconds))
+        self.delay_slider.blockSignals(False)
+        self.delay_spin.blockSignals(False)
+
+    def _on_name_edited(self) -> None:
+        self.name_changed.emit(self.slot_index, self.name_edit.text())
 
     def set_available_devices(self, devices: list[int]) -> None:
         current = self.device_combo.currentData()
@@ -103,6 +126,7 @@ class SlotControl(QGroupBox):
 class ControlsPanel(QWidget):
     device_changed = Signal(int, object)
     delay_changed = Signal(int, float)
+    name_changed = Signal(int, str)
     play_clicked = Signal()
     pause_clicked = Signal()
     rescan_clicked = Signal()
@@ -119,6 +143,7 @@ class ControlsPanel(QWidget):
             slot = SlotControl(i)
             slot.device_changed.connect(self.device_changed)
             slot.delay_changed.connect(self.delay_changed)
+            slot.name_changed.connect(self.name_changed)
             self.slot_controls.append(slot)
             grid.addWidget(slot, i // 2, i % 2)
 
@@ -169,6 +194,12 @@ class ControlsPanel(QWidget):
 
     def set_slot_status(self, slot_index: int, connected: bool) -> None:
         self.slot_controls[slot_index].set_status(connected)
+
+    def set_slot_name(self, slot_index: int, name: str) -> None:
+        self.slot_controls[slot_index].set_name(name)
+
+    def set_slot_delay(self, slot_index: int, seconds: float) -> None:
+        self.slot_controls[slot_index].set_delay(seconds)
 
     def _choose_output_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Carpeta de salida de clips")

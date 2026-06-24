@@ -101,6 +101,12 @@ class CameraViewWidget(QWidget):
             self.video_label.set_frame(self._last_frame, self.rotation_degrees)
         self.rotation_changed.emit(self.slot_index, self.rotation_degrees)
 
+    def set_rotation(self, degrees: int) -> None:
+        """Fija la rotación sin emitir rotation_changed (restauración inicial)."""
+        self.rotation_degrees = degrees % 360
+        if self._last_frame is not None:
+            self.video_label.set_frame(self._last_frame, self.rotation_degrees)
+
     def display_frame(self, frame: np.ndarray) -> None:
         self._last_frame = frame
         self.video_label.set_frame(frame, self.rotation_degrees)
