@@ -44,3 +44,7 @@ main.py        punto de entrada
 
 - Probado en Linux con cámaras virtuales/sin hardware (smoke test). El target de despliegue es Windows 10/11 (RNF-3); requiere un adaptador Bluetooth 4.0+ para el HRM (RNF-5).
 - Los requisitos **Should**/**Could** (etiquetado de cámaras, presets de delay, layouts guardables, persistencia de configuración, pantalla completa por doble clic, overlay de timestamp, exportación individual por cámara) no están implementados en esta primera versión.
+
+## Licencia
+
+Este proyecto se distribuye bajo los términos de la [GNU General Public License v3.0](LICENSE).
