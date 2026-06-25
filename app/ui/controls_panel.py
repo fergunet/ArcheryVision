@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from app.camera.manager import MAX_CAMERAS, MAX_DELAY_SECONDS
+from app.ui.hrm_overlay import HRMPanel
 
 NO_DEVICE_LABEL = "-- Sin cámara --"
 MIN_CLIP_SECONDS = 5
@@ -144,6 +145,8 @@ class ControlsPanel(QWidget):
         super().__init__()
         self.slot_controls: list[SlotControl] = []
 
+        self.hrm_panel = HRMPanel()
+
         grid = QGridLayout()
         for i in range(MAX_CAMERAS):
             slot = SlotControl(i)
@@ -184,6 +187,7 @@ class ControlsPanel(QWidget):
         clip_row.addWidget(self.clip_duration_spin)
 
         layout = QVBoxLayout()
+        layout.addWidget(self.hrm_panel)
         layout.addWidget(self.rescan_btn)
         layout.addLayout(grid)
         layout.addLayout(playback_row)

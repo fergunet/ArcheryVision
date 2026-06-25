@@ -1,7 +1,7 @@
-"""Overlay permanente de pulsaciones (RF-4.2, RF-4.3)."""
+"""Monitorización de pulsaciones en el panel de control (RF-4.2, RF-4.3)."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QVBoxLayout
 
 from app.hrm.ble_client import (
     STATUS_BLE_UNAVAILABLE,
@@ -18,27 +18,31 @@ _STATUS_COLORS = {
 }
 
 
-class HRMOverlay(QWidget):
+class HRMPanel(QGroupBox):
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet(
-            "background-color: rgba(0, 0, 0, 160); border-radius: 6px;"
-        )
+        super().__init__("Pulsaciones", parent)
 
         self.bpm_label = QLabel("-- bpm")
-        self.bpm_label.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        self.bpm_label.setAlignment(Qt.AlignCenter)
+        self.bpm_label.setStyleSheet("font-size: 40px; font-weight: bold;")
 
         self.status_label = QLabel(STATUS_DISCONNECTED)
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setStyleSheet("font-size: 14px;")
         self._apply_status_color(STATUS_DISCONNECTED)
 
-        layout = QHBoxLayout()
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.addWidget(QLabel("♥"))
-        layout.addWidget(self.bpm_label)
+        heart_label = QLabel("♥")
+        heart_label.setStyleSheet("font-size: 40px; color: #e74c3c;")
+        heart_label.setAlignment(Qt.AlignCenter)
+
+        bpm_row = QHBoxLayout()
+        bpm_row.addWidget(heart_label)
+        bpm_row.addWidget(self.bpm_label)
+
+        layout = QVBoxLayout()
+        layout.addLayout(bpm_row)
         layout.addWidget(self.status_label)
         self.setLayout(layout)
-        self.adjustSize()
 
     def set_bpm(self, bpm: int) -> None:
         self.bpm_label.setText(f"{bpm} bpm")
@@ -51,4 +55,4 @@ class HRMOverlay(QWidget):
 
     def _apply_status_color(self, status: str) -> None:
         color = _STATUS_COLORS.get(status, "#95a5a6")
-        self.status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        self.status_label.setStyleSheet(f"font-size: 14px; color: {color}; font-weight: bold;")

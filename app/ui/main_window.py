@@ -18,7 +18,6 @@ from app.recording.exporter import ClipExporter
 from app.sync.clock import SyncClock
 from app.ui.camera_view import CameraSubWindow
 from app.ui.controls_panel import ControlsPanel, DEFAULT_CLIP_SECONDS
-from app.ui.hrm_overlay import HRMOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +83,6 @@ class MainWindow(QMainWindow):
         if not restored_geometry:
             self.mdi_area.tileSubWindows()
 
-        self.hrm_overlay = HRMOverlay(parent=self.mdi_area.viewport())
-        self.hrm_overlay.move(10, 10)
-        self.hrm_overlay.raise_()
-        self.mdi_area.subWindowActivated.connect(lambda _sw: self.hrm_overlay.raise_())
-
         self._connect_signals()
 
         self.display_timer = QTimer(self)
@@ -110,7 +104,7 @@ class MainWindow(QMainWindow):
         cp.output_folder_changed.connect(self._on_output_folder_changed)
 
         self.hrm_client.status_changed.connect(self._on_hrm_status_changed)
-        self.hrm_client.bpm_updated.connect(self.hrm_overlay.set_bpm)
+        self.hrm_client.bpm_updated.connect(self.controls_panel.hrm_panel.set_bpm)
 
     def _refresh_available_devices(self) -> None:
         devices = self.camera_manager.available_devices()
@@ -193,7 +187,6 @@ class MainWindow(QMainWindow):
         self.output_folder = folder
 
     def _update_displays(self) -> None:
-        self.hrm_overlay.raise_()
         if not self.sync_clock.is_playing:
             return
         now = self.sync_clock.now()
@@ -224,12 +217,12 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Error al exportar", message)
 
     def _on_hrm_status_changed(self, status: str) -> None:
-        # El overlay (RF-4.3) ya comunica "Bluetooth no disponible" en rojo
-        # de forma permanente; evitamos un QMessageBox modal porque, al
-        # llegar por una señal en cola desde el hilo BLE, puede aparecer en
-        # cualquier momento (incluso al cerrar la ventana) y bloquear toda
-        # la interfaz hasta que alguien lo cierre manualmente.
-        self.hrm_overlay.set_status(status)
+        # El panel de pulsaciones (RF-4.3) ya comunica "Bluetooth no
+        # disponible" en rojo de forma permanente; evitamos un QMessageBox
+        # modal porque, al llegar por una señal en cola desde el hilo BLE,
+        # puede aparecer en cualquier momento (incluso al cerrar la ventana)
+        # y bloquear toda la interfaz hasta que alguien lo cierre manualmente.
+        self.controls_panel.hrm_panel.set_status(status)
 
     def closeEvent(self, event) -> None:
         for sub in self.sub_windows:
