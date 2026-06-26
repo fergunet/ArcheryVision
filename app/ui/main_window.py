@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
         self.clip_duration_seconds = DEFAULT_CLIP_SECONDS
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "clips")
         self._export_worker: ClipExportWorker | None = None
+        self._persist_timers: dict[int, QTimer] = {}
 
         self.mdi_area = QMdiArea()
         self.setCentralWidget(self.mdi_area)
@@ -118,8 +119,18 @@ class MainWindow(QMainWindow):
         self._persist_camera_settings(slot_index)
 
     def _on_delay_changed(self, slot_index: int, seconds: float) -> None:
-        self.camera_manager.slots[slot_index].delay_seconds = seconds
-        self._persist_camera_settings(slot_index)
+        slot = self.camera_manager.slots[slot_index]
+        slot.delay_seconds = seconds
+        slot.buffer.set_max_seconds(seconds + 2.0)
+        self._schedule_persist(slot_index)
+
+    def _schedule_persist(self, slot_index: int) -> None:
+        if slot_index not in self._persist_timers:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda i=slot_index: self._persist_camera_settings(i))
+            self._persist_timers[slot_index] = timer
+        self._persist_timers[slot_index].start(400)
 
     def _on_rotation_changed(self, slot_index: int, degrees: int) -> None:
         self.camera_manager.slots[slot_index].rotation_degrees = degrees
@@ -155,6 +166,7 @@ class MainWindow(QMainWindow):
             if cam_settings is not None:
                 slot.name = cam_settings["name"] or slot.name
                 slot.delay_seconds = cam_settings["delay_seconds"]
+                slot.buffer.set_max_seconds(slot.delay_seconds + 2.0)
                 slot.rotation_degrees = cam_settings["rotation_degrees"]
                 self.controls_panel.set_slot_name(i, slot.name)
                 self.controls_panel.set_slot_delay(i, slot.delay_seconds)

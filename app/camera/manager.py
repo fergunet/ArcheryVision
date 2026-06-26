@@ -16,7 +16,7 @@ from app.camera.buffer import FrameRingBuffer
 logger = logging.getLogger(__name__)
 
 MAX_CAMERAS = 4
-MAX_DELAY_SECONDS = 60.0
+MAX_DELAY_SECONDS = 30.0
 TARGET_FPS = 30.0
 TARGET_WIDTH = 1280
 TARGET_HEIGHT = 720
@@ -106,7 +106,7 @@ class CameraSlot:
         self.name = f"Cámara {slot_index + 1}"
         self.delay_seconds: float = 0.0
         self.rotation_degrees: int = 0
-        self.buffer = FrameRingBuffer(max_seconds=MAX_DELAY_SECONDS, expected_fps=TARGET_FPS)
+        self.buffer = FrameRingBuffer(max_seconds=2.0, expected_fps=TARGET_FPS)
         self.worker: CameraWorker | None = None
 
     @property

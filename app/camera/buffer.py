@@ -22,11 +22,19 @@ class FrameRingBuffer:
 
     def __init__(self, max_seconds: float, expected_fps: float = 30.0):
         self._max_seconds = max_seconds
+        self._expected_fps = expected_fps
         capacity = max(int(expected_fps * max_seconds * 1.5), 30)
         self._timestamps: list[float] = []
         self._frames: list[np.ndarray] = []
         self._capacity = capacity
         self._lock = threading.Lock()
+
+    def set_max_seconds(self, max_seconds: float) -> None:
+        with self._lock:
+            self._max_seconds = max(max_seconds, 2.0)
+            self._capacity = max(int(self._expected_fps * self._max_seconds * 1.5), 30)
+            if self._timestamps:
+                self._evict_old(self._timestamps[-1])
 
     def push(self, timestamp: float, frame: np.ndarray) -> None:
         with self._lock:
