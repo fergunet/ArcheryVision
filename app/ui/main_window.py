@@ -21,7 +21,7 @@ from app.ui.controls_panel import ControlsPanel, DEFAULT_CLIP_SECONDS
 
 logger = logging.getLogger(__name__)
 
-DISPLAY_REFRESH_MS = 33  # ~30 fps
+DISPLAY_REFRESH_MS = 50  # ~20 fps
 
 
 class ClipExportWorker(QThread):
