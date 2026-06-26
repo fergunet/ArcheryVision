@@ -3,7 +3,7 @@
 RF-5.1 Botón de guardar clip -> exporta los últimos X segundos de todas
        las cámaras activas simultáneamente.
 RF-5.2 Duración configurable (5-60 s).
-RF-5.3 Clip compuesto 2x2 respetando delays y rotaciones aplicadas.
+RF-5.3 Clip compuesto 2x2 sincronizado (sin delays) respetando rotaciones.
 """
 
 import logging
@@ -109,8 +109,7 @@ class ClipExporter:
         if not slot.is_connected or slot.buffer.is_empty():
             return _blank_cell(CELL_WIDTH, CELL_HEIGHT, "Sin señal")
 
-        target_end = reference_time - slot.delay_seconds
-        sample_time = target_end - duration_seconds + (frame_index / fps)
+        sample_time = reference_time - duration_seconds + (frame_index / fps)
         timed_frame = slot.buffer.get_nearest(sample_time)
         if timed_frame is None:
             return _blank_cell(CELL_WIDTH, CELL_HEIGHT, "Sin datos")
