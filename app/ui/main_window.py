@@ -76,8 +76,8 @@ class MainWindow(QMainWindow):
         dock.setWidget(self.controls_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
 
-        restored_geometry = self._restore_config()
         self._refresh_available_devices()
+        restored_geometry = self._restore_config()
         self._apply_restored_devices_to_ui()
         for sub in self.sub_windows:
             sub.show()
@@ -113,10 +113,16 @@ class MainWindow(QMainWindow):
 
     def _on_device_changed(self, slot_index: int, device_index) -> None:
         slot = self.camera_manager.assign_device(slot_index, device_index)
+        if slot.worker is not None:
+            slot.worker.error.connect(self._on_camera_error)
         self.controls_panel.set_slot_status(slot_index, slot.is_connected)
         if not slot.is_connected:
             self.sub_windows[slot_index].view.clear()
         self._persist_camera_settings(slot_index)
+
+    def _on_camera_error(self, slot_index: int, message: str) -> None:
+        logger.warning("Error en cámara %d: %s", slot_index, message)
+        self.controls_panel.set_slot_status(slot_index, False)
 
     def _on_delay_changed(self, slot_index: int, seconds: float) -> None:
         slot = self.camera_manager.slots[slot_index]
@@ -173,7 +179,9 @@ class MainWindow(QMainWindow):
                 self.sub_windows[i].view.set_rotation(slot.rotation_degrees)
                 self.sub_windows[i].setWindowTitle(slot.name)
                 if cam_settings["device_index"] is not None:
-                    self.camera_manager.assign_device(i, cam_settings["device_index"])
+                    restored_slot = self.camera_manager.assign_device(i, cam_settings["device_index"])
+                    if restored_slot.worker is not None:
+                        restored_slot.worker.error.connect(self._on_camera_error)
 
             window_state = self.config_store.load_window_geometry(i)
             if window_state is not None:
