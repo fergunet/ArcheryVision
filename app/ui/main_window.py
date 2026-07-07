@@ -103,6 +103,7 @@ class MainWindow(QMainWindow):
         cp.save_clip_clicked.connect(self._on_save_clip)
         cp.clip_duration_changed.connect(self._on_clip_duration_changed)
         cp.output_folder_changed.connect(self._on_output_folder_changed)
+        cp.reset_config_clicked.connect(self._on_reset_config)
 
         self.hrm_client.status_changed.connect(self._on_hrm_status_changed)
         self.hrm_client.bpm_updated.connect(self.controls_panel.hrm_panel.set_bpm)
@@ -235,6 +236,40 @@ class MainWindow(QMainWindow):
 
     def _on_export_failed(self, message: str) -> None:
         QMessageBox.warning(self, "Error al exportar", message)
+
+    def _on_reset_config(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Resetear configuración",
+            "¿Seguro que quieres borrar toda la configuración?\n"
+            "Se perderán los delays, cámaras asignadas, nombres y posición de ventanas.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        for timer in self._persist_timers.values():
+            timer.stop()
+
+        self.config_store.clear_all()
+
+        for i, slot in enumerate(self.camera_manager.slots):
+            self.camera_manager.assign_device(i, None)
+            slot.delay_seconds = 0.0
+            slot.buffer.set_max_seconds(2.0)
+            slot.rotation_degrees = 0
+            default_name = f"Cámara {i + 1}"
+            slot.name = default_name
+            self.controls_panel.set_slot_name(i, default_name)
+            self.controls_panel.set_slot_delay(i, 0.0)
+            self.controls_panel.set_slot_device(i, None)
+            self.controls_panel.set_slot_status(i, False)
+            self.sub_windows[i].setWindowTitle(default_name)
+            self.sub_windows[i].view.set_rotation(0)
+            self.sub_windows[i].view.clear()
+
+        self.mdi_area.tileSubWindows()
 
     def _on_hrm_status_changed(self, status: str) -> None:
         # El panel de pulsaciones (RF-4.3) ya comunica "Bluetooth no

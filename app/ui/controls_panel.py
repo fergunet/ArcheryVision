@@ -140,6 +140,7 @@ class ControlsPanel(QWidget):
     save_clip_clicked = Signal()
     clip_duration_changed = Signal(int)
     output_folder_changed = Signal(str)
+    reset_config_clicked = Signal()
 
     def __init__(self):
         super().__init__()
@@ -186,6 +187,10 @@ class ControlsPanel(QWidget):
         clip_row.addWidget(QLabel("Duración del clip:"))
         clip_row.addWidget(self.clip_duration_spin)
 
+        self.reset_config_btn = QPushButton("Resetear configuración")
+        self.reset_config_btn.setStyleSheet("color: red;")
+        self.reset_config_btn.clicked.connect(self.reset_config_clicked)
+
         layout = QVBoxLayout()
         layout.addWidget(self.hrm_panel)
         layout.addWidget(self.rescan_btn)
@@ -196,6 +201,7 @@ class ControlsPanel(QWidget):
         layout.addWidget(self.output_folder_label)
         layout.addWidget(self.save_clip_btn)
         layout.addStretch()
+        layout.addWidget(self.reset_config_btn)
         self.setLayout(layout)
 
     def update_available_devices(self, devices: list[int]) -> None:

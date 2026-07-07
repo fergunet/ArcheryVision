@@ -72,5 +72,9 @@ class ConfigStore:
         self._settings.endGroup()
         return result
 
+    def clear_all(self) -> None:
+        self._settings.clear()
+        self._settings.sync()
+
     def sync(self) -> None:
         self._settings.sync()
