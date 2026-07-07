@@ -139,6 +139,7 @@ class ControlsPanel(QWidget):
     rescan_clicked = Signal()
     save_clip_clicked = Signal()
     clip_duration_changed = Signal(int)
+    clip_trim_changed = Signal(int)
     output_folder_changed = Signal(str)
     reset_config_clicked = Signal()
 
@@ -175,6 +176,12 @@ class ControlsPanel(QWidget):
         self.clip_duration_spin.setSuffix(" s")
         self.clip_duration_spin.valueChanged.connect(self.clip_duration_changed)
 
+        self.clip_trim_spin = QSpinBox()
+        self.clip_trim_spin.setRange(0, MAX_CLIP_SECONDS)
+        self.clip_trim_spin.setValue(0)
+        self.clip_trim_spin.setSuffix(" s")
+        self.clip_trim_spin.valueChanged.connect(self.clip_trim_changed)
+
         self.output_folder_label = QLabel("Carpeta no seleccionada")
         self.output_folder_btn = QPushButton("Elegir carpeta de salida")
         self.output_folder_btn.clicked.connect(self._choose_output_folder)
@@ -187,6 +194,10 @@ class ControlsPanel(QWidget):
         clip_row.addWidget(QLabel("Duración del clip:"))
         clip_row.addWidget(self.clip_duration_spin)
 
+        trim_row = QHBoxLayout()
+        trim_row.addWidget(QLabel("Recortar final:"))
+        trim_row.addWidget(self.clip_trim_spin)
+
         self.reset_config_btn = QPushButton("Resetear configuración")
         self.reset_config_btn.setStyleSheet("color: red;")
         self.reset_config_btn.clicked.connect(self.reset_config_clicked)
@@ -197,6 +208,7 @@ class ControlsPanel(QWidget):
         layout.addLayout(grid)
         layout.addLayout(playback_row)
         layout.addLayout(clip_row)
+        layout.addLayout(trim_row)
         layout.addWidget(self.output_folder_btn)
         layout.addWidget(self.output_folder_label)
         layout.addWidget(self.save_clip_btn)

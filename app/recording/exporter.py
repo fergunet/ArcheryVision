@@ -65,14 +65,16 @@ class ClipExporter:
     def __init__(self, output_folder: str):
         self.output_folder = output_folder
 
-    def export(self, slots: list[CameraSlot], duration_seconds: float) -> str | None:
+    def export(
+        self, slots: list[CameraSlot], duration_seconds: float, trim_seconds: float = 0.0
+    ) -> str | None:
         active_slots = [s for s in slots if s.is_connected and not s.buffer.is_empty()]
         if not active_slots:
             logger.warning("No hay cámaras activas para exportar el clip")
             return None
 
         os.makedirs(self.output_folder, exist_ok=True)
-        reference_time = time.monotonic()
+        reference_time = time.monotonic() - trim_seconds
         fps = TARGET_FPS
         n_frames = max(int(duration_seconds * fps), 1)
 

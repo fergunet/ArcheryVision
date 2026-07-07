@@ -28,15 +28,18 @@ class ClipExportWorker(QThread):
     finished_ok = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, exporter: ClipExporter, slots, duration_seconds: float):
+    def __init__(
+        self, exporter: ClipExporter, slots, duration_seconds: float, trim_seconds: float
+    ):
         super().__init__()
         self._exporter = exporter
         self._slots = slots
         self._duration_seconds = duration_seconds
+        self._trim_seconds = trim_seconds
 
     def run(self) -> None:
         try:
-            path = self._exporter.export(self._slots, self._duration_seconds)
+            path = self._exporter.export(self._slots, self._duration_seconds, self._trim_seconds)
             if path:
                 self.finished_ok.emit(path)
             else:
@@ -57,6 +60,7 @@ class MainWindow(QMainWindow):
         self.hrm_client = HRMClient()
         self.config_store = ConfigStore()
         self.clip_duration_seconds = DEFAULT_CLIP_SECONDS
+        self.clip_trim_seconds = 0
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "clips")
         self._export_worker: ClipExportWorker | None = None
         self._persist_timers: dict[int, QTimer] = {}
@@ -103,6 +107,7 @@ class MainWindow(QMainWindow):
         cp.save_clip_clicked.connect(self._on_save_clip)
         cp.clip_duration_changed.connect(self._on_clip_duration_changed)
         cp.output_folder_changed.connect(self._on_output_folder_changed)
+        cp.clip_trim_changed.connect(self._on_clip_trim_changed)
         cp.reset_config_clicked.connect(self._on_reset_config)
 
         self.hrm_client.status_changed.connect(self._on_hrm_status_changed)
@@ -128,8 +133,13 @@ class MainWindow(QMainWindow):
     def _on_delay_changed(self, slot_index: int, seconds: float) -> None:
         slot = self.camera_manager.slots[slot_index]
         slot.delay_seconds = seconds
-        slot.buffer.set_max_seconds(seconds + 2.0)
+        self._update_buffer_size(slot_index)
         self._schedule_persist(slot_index)
+
+    def _update_buffer_size(self, slot_index: int) -> None:
+        slot = self.camera_manager.slots[slot_index]
+        needed = max(slot.delay_seconds, self.clip_duration_seconds + self.clip_trim_seconds)
+        slot.buffer.set_max_seconds(needed + 2.0)
 
     def _schedule_persist(self, slot_index: int) -> None:
         if slot_index not in self._persist_timers:
@@ -173,7 +183,8 @@ class MainWindow(QMainWindow):
             if cam_settings is not None:
                 slot.name = cam_settings["name"] or slot.name
                 slot.delay_seconds = cam_settings["delay_seconds"]
-                slot.buffer.set_max_seconds(slot.delay_seconds + 2.0)
+                needed = max(slot.delay_seconds, self.clip_duration_seconds + self.clip_trim_seconds)
+                slot.buffer.set_max_seconds(needed + 2.0)
                 slot.rotation_degrees = cam_settings["rotation_degrees"]
                 self.controls_panel.set_slot_name(i, slot.name)
                 self.controls_panel.set_slot_delay(i, slot.delay_seconds)
@@ -203,6 +214,13 @@ class MainWindow(QMainWindow):
 
     def _on_clip_duration_changed(self, seconds: int) -> None:
         self.clip_duration_seconds = seconds
+        for i in range(len(self.camera_manager.slots)):
+            self._update_buffer_size(i)
+
+    def _on_clip_trim_changed(self, seconds: int) -> None:
+        self.clip_trim_seconds = seconds
+        for i in range(len(self.camera_manager.slots)):
+            self._update_buffer_size(i)
 
     def _on_output_folder_changed(self, folder: str) -> None:
         self.output_folder = folder
@@ -225,7 +243,7 @@ class MainWindow(QMainWindow):
             return
         exporter = ClipExporter(self.output_folder)
         self._export_worker = ClipExportWorker(
-            exporter, self.camera_manager.slots, self.clip_duration_seconds
+            exporter, self.camera_manager.slots, self.clip_duration_seconds, self.clip_trim_seconds
         )
         self._export_worker.finished_ok.connect(self._on_export_finished)
         self._export_worker.failed.connect(self._on_export_failed)
@@ -257,7 +275,7 @@ class MainWindow(QMainWindow):
         for i, slot in enumerate(self.camera_manager.slots):
             self.camera_manager.assign_device(i, None)
             slot.delay_seconds = 0.0
-            slot.buffer.set_max_seconds(2.0)
+            slot.buffer.set_max_seconds(self.clip_duration_seconds + self.clip_trim_seconds + 2.0)
             slot.rotation_degrees = 0
             default_name = f"Cámara {i + 1}"
             slot.name = default_name
