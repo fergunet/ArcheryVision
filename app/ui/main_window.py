@@ -176,6 +176,13 @@ class MainWindow(QMainWindow):
         Devuelve True si había geometría de ventana guardada, para que el
         llamador decida si hace falta el tileSubWindows() por defecto.
         """
+        clip_settings = self.config_store.load_clip_settings()
+        if clip_settings is not None:
+            self.clip_duration_seconds = clip_settings["duration_seconds"]
+            self.clip_trim_seconds = clip_settings["trim_seconds"]
+            self.controls_panel.set_clip_duration(self.clip_duration_seconds)
+            self.controls_panel.set_clip_trim(self.clip_trim_seconds)
+
         any_geometry_restored = False
         for slot in self.camera_manager.slots:
             i = slot.slot_index
@@ -216,11 +223,16 @@ class MainWindow(QMainWindow):
         self.clip_duration_seconds = seconds
         for i in range(len(self.camera_manager.slots)):
             self._update_buffer_size(i)
+        self._persist_clip_settings()
 
     def _on_clip_trim_changed(self, seconds: int) -> None:
         self.clip_trim_seconds = seconds
         for i in range(len(self.camera_manager.slots)):
             self._update_buffer_size(i)
+        self._persist_clip_settings()
+
+    def _persist_clip_settings(self) -> None:
+        self.config_store.save_clip_settings(self.clip_duration_seconds, self.clip_trim_seconds)
 
     def _on_output_folder_changed(self, folder: str) -> None:
         self.output_folder = folder

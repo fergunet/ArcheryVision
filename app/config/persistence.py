@@ -72,6 +72,24 @@ class ConfigStore:
         self._settings.endGroup()
         return result
 
+    def save_clip_settings(self, duration_seconds: int, trim_seconds: int) -> None:
+        self._settings.beginGroup("clip")
+        self._settings.setValue("duration_seconds", duration_seconds)
+        self._settings.setValue("trim_seconds", trim_seconds)
+        self._settings.endGroup()
+
+    def load_clip_settings(self) -> dict | None:
+        self._settings.beginGroup("clip")
+        has_data = self._settings.contains("duration_seconds")
+        result = None
+        if has_data:
+            result = {
+                "duration_seconds": self._settings.value("duration_seconds", type=int),
+                "trim_seconds": self._settings.value("trim_seconds", type=int),
+            }
+        self._settings.endGroup()
+        return result
+
     def clear_all(self) -> None:
         self._settings.clear()
         self._settings.sync()

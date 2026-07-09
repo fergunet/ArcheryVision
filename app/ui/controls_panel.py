@@ -232,6 +232,16 @@ class ControlsPanel(QWidget):
     def set_slot_device(self, slot_index: int, device_index: int | None) -> None:
         self.slot_controls[slot_index].set_device(device_index)
 
+    def set_clip_duration(self, seconds: int) -> None:
+        self.clip_duration_spin.blockSignals(True)
+        self.clip_duration_spin.setValue(seconds)
+        self.clip_duration_spin.blockSignals(False)
+
+    def set_clip_trim(self, seconds: int) -> None:
+        self.clip_trim_spin.blockSignals(True)
+        self.clip_trim_spin.setValue(seconds)
+        self.clip_trim_spin.blockSignals(False)
+
     def _choose_output_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Carpeta de salida de clips")
         if folder:
