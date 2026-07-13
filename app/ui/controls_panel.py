@@ -190,6 +190,10 @@ class ControlsPanel(QWidget):
         self.save_clip_btn.setStyleSheet("font-weight: bold; padding: 8px;")
         self.save_clip_btn.clicked.connect(self.save_clip_clicked)
 
+        self.clip_status_label = QLabel("")
+        self.clip_status_label.setWordWrap(True)
+        self.clip_status_label.hide()
+
         clip_row = QHBoxLayout()
         clip_row.addWidget(QLabel("Duración del clip:"))
         clip_row.addWidget(self.clip_duration_spin)
@@ -212,6 +216,7 @@ class ControlsPanel(QWidget):
         layout.addWidget(self.output_folder_btn)
         layout.addWidget(self.output_folder_label)
         layout.addWidget(self.save_clip_btn)
+        layout.addWidget(self.clip_status_label)
         layout.addStretch()
         layout.addWidget(self.reset_config_btn)
         self.setLayout(layout)
@@ -241,6 +246,12 @@ class ControlsPanel(QWidget):
         self.clip_trim_spin.blockSignals(True)
         self.clip_trim_spin.setValue(seconds)
         self.clip_trim_spin.blockSignals(False)
+
+    def set_clip_status(self, message: str, level: str = "info") -> None:
+        colors = {"info": "gray", "success": "green", "error": "red"}
+        self.clip_status_label.setStyleSheet(f"color: {colors.get(level, 'gray')};")
+        self.clip_status_label.setText(message)
+        self.clip_status_label.setVisible(bool(message))
 
     def _choose_output_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Carpeta de salida de clips")

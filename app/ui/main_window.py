@@ -64,6 +64,8 @@ class MainWindow(QMainWindow):
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "clips")
         self._export_worker: ClipExportWorker | None = None
         self._persist_timers: dict[int, QTimer] = {}
+        self._clip_status_timer = QTimer(self)
+        self._clip_status_timer.setSingleShot(True)
 
         self.mdi_area = QMdiArea()
         self.setCentralWidget(self.mdi_area)
@@ -115,6 +117,8 @@ class MainWindow(QMainWindow):
 
         self.hrm_client.status_changed.connect(self._on_hrm_status_changed)
         self.hrm_client.bpm_updated.connect(self.controls_panel.hrm_panel.set_bpm)
+
+        self._clip_status_timer.timeout.connect(lambda: cp.set_clip_status(""))
 
     def _refresh_available_devices(self) -> None:
         devices = self.camera_manager.available_devices()
@@ -252,9 +256,13 @@ class MainWindow(QMainWindow):
             if timed_frame is not None:
                 self.sub_windows[slot.slot_index].view.display_frame(timed_frame.frame)
 
+    def _show_clip_status(self, message: str, level: str = "info") -> None:
+        self.controls_panel.set_clip_status(message, level)
+        self._clip_status_timer.start(8000)
+
     def _on_save_clip(self) -> None:
         if self._export_worker is not None and self._export_worker.isRunning():
-            QMessageBox.information(self, "Exportando", "Ya se está exportando un clip.")
+            self._show_clip_status("Ya se está exportando un clip.", "info")
             return
         exporter = ClipExporter(self.output_folder)
         self._export_worker = ClipExportWorker(
@@ -263,12 +271,13 @@ class MainWindow(QMainWindow):
         self._export_worker.finished_ok.connect(self._on_export_finished)
         self._export_worker.failed.connect(self._on_export_failed)
         self._export_worker.start()
+        self._show_clip_status("Exportando clip…")
 
     def _on_export_finished(self, path: str) -> None:
-        QMessageBox.information(self, "Clip guardado", f"Clip exportado correctamente:\n{path}")
+        self._show_clip_status(f"Clip exportado correctamente: {path}", "success")
 
     def _on_export_failed(self, message: str) -> None:
-        QMessageBox.warning(self, "Error al exportar", message)
+        self._show_clip_status(f"Error al exportar: {message}", "error")
 
     def _on_reset_config(self) -> None:
         reply = QMessageBox.question(
