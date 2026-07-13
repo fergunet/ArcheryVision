@@ -76,9 +76,12 @@ class MainWindow(QMainWindow):
             self.sub_windows.append(sub)
 
         self.controls_panel = ControlsPanel()
-        dock = QDockWidget("Controles", self)
-        dock.setWidget(self.controls_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        self.controls_dock = QDockWidget("Controles", self)
+        self.controls_dock.setWidget(self.controls_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.controls_dock)
+
+        view_menu = self.menuBar().addMenu("Ver")
+        view_menu.addAction(self.controls_dock.toggleViewAction())
 
         self._refresh_available_devices()
         restored_geometry = self._restore_config()
