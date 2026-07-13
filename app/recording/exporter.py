@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from app.camera.manager import CameraSlot, TARGET_FPS
+from app.hrm.history import BpmHistory
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,20 @@ def _fit_letterbox(frame: np.ndarray, width: int, height: int) -> np.ndarray:
     return canvas
 
 
+def _draw_overlay(frame: np.ndarray, wall_time: float, bpm: int | None) -> None:
+    timestamp_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(wall_time))
+    bpm_text = f"{bpm} bpm" if bpm is not None else "-- bpm"
+    text = f"{timestamp_text}   {bpm_text}"
+
+    font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2
+    (text_w, text_h), baseline = cv2.getTextSize(text, font, scale, thickness)
+    pad = 8
+    cv2.rectangle(frame, (0, 0), (text_w + pad * 2, text_h + baseline + pad * 2), (0, 0, 0), -1)
+    cv2.putText(
+        frame, text, (pad, text_h + pad), font, scale, (255, 255, 255), thickness, cv2.LINE_AA
+    )
+
+
 def _blank_cell(width: int, height: int, text: str) -> np.ndarray:
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.putText(
@@ -66,7 +81,12 @@ class ClipExporter:
         self.output_folder = output_folder
 
     def export(
-        self, slots: list[CameraSlot], duration_seconds: float, trim_seconds: float = 0.0
+        self,
+        slots: list[CameraSlot],
+        duration_seconds: float,
+        trim_seconds: float,
+        bpm_history: BpmHistory,
+        wall_clock_ref: tuple[float, float],
     ) -> str | None:
         active_slots = [s for s in slots if s.is_connected and not s.buffer.is_empty()]
         if not active_slots:
@@ -77,6 +97,7 @@ class ClipExporter:
         reference_time = time.monotonic() - trim_seconds
         fps = TARGET_FPS
         n_frames = max(int(duration_seconds * fps), 1)
+        mono_ref, wall_ref = wall_clock_ref
 
         filename = f"clip_{time.strftime('%Y%m%d_%H%M%S')}.mp4"
         output_path = os.path.join(self.output_folder, filename)
@@ -87,12 +108,16 @@ class ClipExporter:
 
         try:
             for i in range(n_frames):
+                sample_time = reference_time - duration_seconds + (i / fps)
                 cells = []
                 for slot in slots:
-                    cells.append(self._render_cell(slot, reference_time, duration_seconds, i, fps))
+                    cells.append(self._render_cell(slot, sample_time))
                 grid_frame = np.vstack(
                     [np.hstack(cells[0:2]), np.hstack(cells[2:4])]
                 )
+                wall_time = wall_ref + (sample_time - mono_ref)
+                bpm = bpm_history.get_nearest(sample_time)
+                _draw_overlay(grid_frame, wall_time, bpm)
                 writer.write(grid_frame)
         finally:
             writer.release()
@@ -100,18 +125,10 @@ class ClipExporter:
         logger.info("Clip exportado: %s", output_path)
         return output_path
 
-    def _render_cell(
-        self,
-        slot: CameraSlot,
-        reference_time: float,
-        duration_seconds: float,
-        frame_index: int,
-        fps: float,
-    ) -> np.ndarray:
+    def _render_cell(self, slot: CameraSlot, sample_time: float) -> np.ndarray:
         if not slot.is_connected or slot.buffer.is_empty():
             return _blank_cell(CELL_WIDTH, CELL_HEIGHT, "Sin señal")
 
-        sample_time = reference_time - duration_seconds + (frame_index / fps)
         timed_frame = slot.buffer.get_nearest(sample_time)
         if timed_frame is None:
             return _blank_cell(CELL_WIDTH, CELL_HEIGHT, "Sin datos")

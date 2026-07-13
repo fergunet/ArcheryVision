@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
 from app.camera.manager import CameraManager, MAX_CAMERAS
 from app.config.persistence import ConfigStore
 from app.hrm.ble_client import HRMClient
+from app.hrm.history import BpmHistory
 from app.recording.exporter import ClipExporter
 from app.sync.clock import SyncClock
 from app.ui.camera_view import CameraSubWindow
@@ -29,17 +31,31 @@ class ClipExportWorker(QThread):
     failed = Signal(str)
 
     def __init__(
-        self, exporter: ClipExporter, slots, duration_seconds: float, trim_seconds: float
+        self,
+        exporter: ClipExporter,
+        slots,
+        duration_seconds: float,
+        trim_seconds: float,
+        bpm_history: BpmHistory,
+        wall_clock_ref: tuple[float, float],
     ):
         super().__init__()
         self._exporter = exporter
         self._slots = slots
         self._duration_seconds = duration_seconds
         self._trim_seconds = trim_seconds
+        self._bpm_history = bpm_history
+        self._wall_clock_ref = wall_clock_ref
 
     def run(self) -> None:
         try:
-            path = self._exporter.export(self._slots, self._duration_seconds, self._trim_seconds)
+            path = self._exporter.export(
+                self._slots,
+                self._duration_seconds,
+                self._trim_seconds,
+                self._bpm_history,
+                self._wall_clock_ref,
+            )
             if path:
                 self.finished_ok.emit(path)
             else:
@@ -61,6 +77,8 @@ class MainWindow(QMainWindow):
         self.config_store = ConfigStore()
         self.clip_duration_seconds = DEFAULT_CLIP_SECONDS
         self.clip_trim_seconds = 0
+        self.bpm_history = BpmHistory()
+        self._wall_clock_ref = (time.monotonic(), time.time())
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "clips")
         self._export_worker: ClipExportWorker | None = None
         self._persist_timers: dict[int, QTimer] = {}
@@ -116,7 +134,7 @@ class MainWindow(QMainWindow):
         cp.reset_config_clicked.connect(self._on_reset_config)
 
         self.hrm_client.status_changed.connect(self._on_hrm_status_changed)
-        self.hrm_client.bpm_updated.connect(self.controls_panel.hrm_panel.set_bpm)
+        self.hrm_client.bpm_updated.connect(self._on_bpm_updated)
 
         self._clip_status_timer.timeout.connect(lambda: cp.set_clip_status(""))
 
@@ -147,6 +165,9 @@ class MainWindow(QMainWindow):
         slot = self.camera_manager.slots[slot_index]
         needed = max(slot.delay_seconds, self.clip_duration_seconds + self.clip_trim_seconds)
         slot.buffer.set_max_seconds(needed + 2.0)
+
+    def _update_bpm_history_size(self) -> None:
+        self.bpm_history.set_max_seconds(self.clip_duration_seconds + self.clip_trim_seconds + 2.0)
 
     def _schedule_persist(self, slot_index: int) -> None:
         if slot_index not in self._persist_timers:
@@ -189,6 +210,7 @@ class MainWindow(QMainWindow):
             self.clip_trim_seconds = clip_settings["trim_seconds"]
             self.controls_panel.set_clip_duration(self.clip_duration_seconds)
             self.controls_panel.set_clip_trim(self.clip_trim_seconds)
+        self._update_bpm_history_size()
 
         any_geometry_restored = False
         for slot in self.camera_manager.slots:
@@ -230,12 +252,14 @@ class MainWindow(QMainWindow):
         self.clip_duration_seconds = seconds
         for i in range(len(self.camera_manager.slots)):
             self._update_buffer_size(i)
+        self._update_bpm_history_size()
         self._persist_clip_settings()
 
     def _on_clip_trim_changed(self, seconds: int) -> None:
         self.clip_trim_seconds = seconds
         for i in range(len(self.camera_manager.slots)):
             self._update_buffer_size(i)
+        self._update_bpm_history_size()
         self._persist_clip_settings()
 
     def _persist_clip_settings(self) -> None:
@@ -266,7 +290,12 @@ class MainWindow(QMainWindow):
             return
         exporter = ClipExporter(self.output_folder)
         self._export_worker = ClipExportWorker(
-            exporter, self.camera_manager.slots, self.clip_duration_seconds, self.clip_trim_seconds
+            exporter,
+            self.camera_manager.slots,
+            self.clip_duration_seconds,
+            self.clip_trim_seconds,
+            self.bpm_history,
+            self._wall_clock_ref,
         )
         self._export_worker.finished_ok.connect(self._on_export_finished)
         self._export_worker.failed.connect(self._on_export_failed)
@@ -320,6 +349,10 @@ class MainWindow(QMainWindow):
         # puede aparecer en cualquier momento (incluso al cerrar la ventana)
         # y bloquear toda la interfaz hasta que alguien lo cierre manualmente.
         self.controls_panel.hrm_panel.set_status(status)
+
+    def _on_bpm_updated(self, bpm: int) -> None:
+        self.controls_panel.hrm_panel.set_bpm(bpm)
+        self.bpm_history.push(time.monotonic(), bpm)
 
     def closeEvent(self, event) -> None:
         for sub in self.sub_windows:
