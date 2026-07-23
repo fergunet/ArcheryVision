@@ -204,6 +204,10 @@ class MainWindow(QMainWindow):
         Devuelve True si había geometría de ventana guardada, para que el
         llamador decida si hace falta el tileSubWindows() por defecto.
         """
+        dock_visible = self.config_store.load_controls_dock_visible()
+        if dock_visible is not None:
+            self.controls_dock.setVisible(dock_visible)
+
         clip_settings = self.config_store.load_clip_settings()
         if clip_settings is not None:
             self.clip_duration_seconds = clip_settings["duration_seconds"]
@@ -355,6 +359,7 @@ class MainWindow(QMainWindow):
         self.bpm_history.push(time.monotonic(), bpm)
 
     def closeEvent(self, event) -> None:
+        self.config_store.save_controls_dock_visible(self.controls_dock.isVisible())
         for sub in self.sub_windows:
             geo = sub.normal_geometry
             self.config_store.save_window_geometry(

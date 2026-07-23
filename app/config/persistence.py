@@ -90,6 +90,14 @@ class ConfigStore:
         self._settings.endGroup()
         return result
 
+    def save_controls_dock_visible(self, visible: bool) -> None:
+        self._settings.setValue("controls_dock_visible", visible)
+
+    def load_controls_dock_visible(self) -> bool | None:
+        if not self._settings.contains("controls_dock_visible"):
+            return None
+        return self._settings.value("controls_dock_visible", type=bool)
+
     def clear_all(self) -> None:
         self._settings.clear()
         self._settings.sync()
