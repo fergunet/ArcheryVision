@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMdiArea,
     QMessageBox,
+    QToolBar,
 )
 
 from app.camera.manager import CameraManager, MAX_CAMERAS
@@ -102,6 +103,12 @@ class MainWindow(QMainWindow):
 
         view_menu = self.menuBar().addMenu("Ver")
         view_menu.addAction(self.controls_dock.toggleViewAction())
+
+        toolbar = QToolBar("Grabación", self)
+        toolbar.setMovable(False)
+        self.save_clip_action = toolbar.addAction("💾 Guardar clip")
+        self.save_clip_action.triggered.connect(self._on_save_clip)
+        self.addToolBar(toolbar)
 
         self._refresh_available_devices()
         restored_geometry = self._restore_config()
