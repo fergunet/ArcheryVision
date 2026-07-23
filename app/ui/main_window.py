@@ -101,13 +101,11 @@ class MainWindow(QMainWindow):
         self.controls_dock.setWidget(self.controls_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.controls_dock)
 
-        view_menu = self.menuBar().addMenu("Ver")
-        view_menu.addAction(self.controls_dock.toggleViewAction())
-
-        toolbar = QToolBar("Grabación", self)
+        toolbar = QToolBar("Principal", self)
         toolbar.setMovable(False)
         self.save_clip_action = toolbar.addAction("💾 Guardar clip")
         self.save_clip_action.triggered.connect(self._on_save_clip)
+        toolbar.addAction(self.controls_dock.toggleViewAction())
         self.addToolBar(toolbar)
 
         self._refresh_available_devices()
