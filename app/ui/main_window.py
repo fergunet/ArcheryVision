@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar("Principal", self)
         toolbar.setMovable(False)
         self.save_clip_action = toolbar.addAction("💾 Guardar clip")
-        self.save_clip_action.triggered.connect(self._on_save_clip)
+        self.save_clip_action.triggered.connect(self._on_save_clip_action)
         self.toggle_controls_action = toolbar.addAction("Controles")
         self.toggle_controls_action.setCheckable(True)
         self.toggle_controls_action.setChecked(True)
@@ -329,6 +329,12 @@ class MainWindow(QMainWindow):
             pp.sound_enabled,
         )
 
+    def _on_save_clip_action(self) -> None:
+        if self.tab_widget.currentWidget() is self.pose_panel:
+            self.pose_panel.save_clip()
+        else:
+            self._on_save_clip()
+
     def _on_toggle_controls(self, visible: bool) -> None:
         self.controls_panel.setVisible(visible)
         self.pose_panel.set_controls_visible(visible)
@@ -348,7 +354,6 @@ class MainWindow(QMainWindow):
             if slot.is_connected:
                 self.camera_manager.disconnect_slot(i)
                 self.controls_panel.set_slot_status(i, False)
-        self.save_clip_action.setEnabled(False)
 
     def _resume_multicam_capture(self) -> None:
         for i, slot in enumerate(self.camera_manager.slots):
@@ -358,7 +363,6 @@ class MainWindow(QMainWindow):
                     restored_slot.worker.error.connect(self._on_camera_error)
                 self.controls_panel.set_slot_status(i, restored_slot.is_connected)
         self.display_timer.start(DISPLAY_REFRESH_MS)
-        self.save_clip_action.setEnabled(True)
 
     def _update_displays(self) -> None:
         if not self.sync_clock.is_playing:

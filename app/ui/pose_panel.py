@@ -144,9 +144,9 @@ class PoseAnalysisWidget(QWidget):
         self.output_folder_btn = QPushButton("Elegir carpeta de salida")
         self.output_folder_btn.clicked.connect(self._choose_output_folder)
 
-        self.record_btn = QPushButton("● Grabar")
-        self.record_btn.setStyleSheet("font-weight: bold; padding: 8px;")
-        self.record_btn.clicked.connect(self._on_record_clicked)
+        self.save_clip_btn = QPushButton("💾 Guardar clip")
+        self.save_clip_btn.setStyleSheet("font-weight: bold; padding: 8px;")
+        self.save_clip_btn.clicked.connect(self.save_clip)
 
         self.clip_status_label = QLabel("")
         self.clip_status_label.setWordWrap(True)
@@ -190,7 +190,7 @@ class PoseAnalysisWidget(QWidget):
         form.addWidget(self.sound_checkbox)
         form.addWidget(self.output_folder_btn)
         form.addWidget(self.output_folder_label)
-        form.addWidget(self.record_btn)
+        form.addWidget(self.save_clip_btn)
         form.addWidget(self.clip_status_label)
         controls_box.setLayout(form)
 
@@ -407,7 +407,7 @@ class PoseAnalysisWidget(QWidget):
         if message:
             self._clip_status_timer.start(8000)
 
-    def _on_record_clicked(self) -> None:
+    def save_clip(self) -> None:
         if self._export_worker is not None and self._export_worker.isRunning():
             self._set_clip_status("Ya se está exportando un vídeo.", "info")
             return
