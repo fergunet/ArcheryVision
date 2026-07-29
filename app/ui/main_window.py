@@ -167,6 +167,7 @@ class MainWindow(QMainWindow):
         pp.output_folder_changed.connect(self._persist_pose_settings)
         pp.sound_enabled_changed.connect(self._persist_pose_settings)
         pp.delay_changed.connect(self._schedule_pose_persist)
+        pp.clip_duration_changed.connect(self._schedule_pose_persist)
         pp.trim_changed.connect(self._schedule_pose_persist)
 
     def _refresh_available_devices(self) -> None:
@@ -254,6 +255,7 @@ class MainWindow(QMainWindow):
             pp.set_handedness(pose_settings["handedness"])
             pp.set_device(pose_settings["device_index"])
             pp.set_delay(pose_settings["delay_seconds"])
+            pp.set_clip_duration(pose_settings["clip_duration_seconds"])
             pp.set_trim(pose_settings["trim_seconds"])
             pp.set_output_folder(pose_settings["output_folder"])
             pp.set_sound_enabled(pose_settings["sound_enabled"])
@@ -324,6 +326,7 @@ class MainWindow(QMainWindow):
             pp.handedness,
             pp.device_index,
             pp.delay_seconds,
+            pp.clip_duration_seconds,
             pp.trim_seconds,
             pp.output_folder,
             pp.sound_enabled,

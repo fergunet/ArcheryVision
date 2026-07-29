@@ -106,6 +106,7 @@ class ConfigStore:
         handedness: Handedness,
         device_index: int | None,
         delay_seconds: float,
+        clip_duration_seconds: float,
         trim_seconds: float,
         output_folder: str,
         sound_enabled: bool,
@@ -115,6 +116,7 @@ class ConfigStore:
         self._settings.setValue("handedness", handedness.value)
         self._settings.setValue("device_index", device_index if device_index is not None else -1)
         self._settings.setValue("delay_seconds", delay_seconds)
+        self._settings.setValue("clip_duration_seconds", clip_duration_seconds)
         self._settings.setValue("trim_seconds", trim_seconds)
         self._settings.setValue("output_folder", output_folder)
         self._settings.setValue("sound_enabled", sound_enabled)
@@ -131,6 +133,7 @@ class ConfigStore:
                 "handedness": Handedness(self._settings.value("handedness", type=str)),
                 "device_index": None if device_index < 0 else device_index,
                 "delay_seconds": self._settings.value("delay_seconds", type=float),
+                "clip_duration_seconds": self._settings.value("clip_duration_seconds", type=float),
                 "trim_seconds": self._settings.value("trim_seconds", type=float),
                 "output_folder": self._settings.value("output_folder", type=str),
                 "sound_enabled": self._settings.value("sound_enabled", type=bool),

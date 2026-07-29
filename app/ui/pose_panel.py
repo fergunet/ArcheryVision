@@ -32,6 +32,7 @@ from app.pose.history import PoseResultHistory
 from app.pose.view_modes import Handedness, ViewMode
 from app.pose.worker import TARGET_FPS, PoseWorker
 from app.ui.camera_view import PLACEHOLDER_TEXT, VideoLabel
+from app.ui.controls_panel import DEFAULT_CLIP_SECONDS, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ class PoseAnalysisWidget(QWidget):
     handedness_changed = Signal(object)  # Handedness
     device_changed = Signal(object)  # int | None
     delay_changed = Signal(float)
+    clip_duration_changed = Signal(float)
     trim_changed = Signal(float)
     output_folder_changed = Signal(str)
     sound_enabled_changed = Signal(bool)
@@ -91,12 +93,13 @@ class PoseAnalysisWidget(QWidget):
         self.handedness = Handedness.DIESTRO
         self.device_index: int | None = None
         self.delay_seconds = 0.0
+        self.clip_duration_seconds = float(DEFAULT_CLIP_SECONDS)
         self.trim_seconds = 0.0
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "posturas")
         self.sound_enabled = False
 
-        self.buffer = FrameRingBuffer(max_seconds=MAX_DELAY_SECONDS_POSE + 2.0, expected_fps=TARGET_FPS)
-        self.pose_history = PoseResultHistory(max_seconds=MAX_DELAY_SECONDS_POSE + 2.0)
+        self.buffer = FrameRingBuffer(max_seconds=2.0, expected_fps=TARGET_FPS)
+        self.pose_history = PoseResultHistory(max_seconds=2.0)
         self.worker: PoseWorker | None = None
         self._export_worker: PoseClipExportWorker | None = None
         self._last_overall_ok: bool | None = None
@@ -132,8 +135,14 @@ class PoseAnalysisWidget(QWidget):
         self.delay_slider.valueChanged.connect(self._on_delay_slider_changed)
         self.delay_spin.valueChanged.connect(self._on_delay_spin_changed)
 
+        self.clip_duration_spin = QSpinBox()
+        self.clip_duration_spin.setRange(MIN_CLIP_SECONDS, MAX_CLIP_SECONDS)
+        self.clip_duration_spin.setValue(DEFAULT_CLIP_SECONDS)
+        self.clip_duration_spin.setSuffix(" s")
+        self.clip_duration_spin.valueChanged.connect(self._on_clip_duration_changed)
+
         self.trim_spin = QSpinBox()
-        self.trim_spin.setRange(0, int(MAX_DELAY_SECONDS_POSE))
+        self.trim_spin.setRange(0, MAX_CLIP_SECONDS)
         self.trim_spin.setSuffix(" s")
         self.trim_spin.valueChanged.connect(self._on_trim_changed)
 
@@ -177,6 +186,10 @@ class PoseAnalysisWidget(QWidget):
         delay_row.addWidget(self.delay_slider)
         delay_row.addWidget(self.delay_spin)
 
+        clip_duration_row = QHBoxLayout()
+        clip_duration_row.addWidget(QLabel("Duración del clip:"))
+        clip_duration_row.addWidget(self.clip_duration_spin)
+
         trim_row = QHBoxLayout()
         trim_row.addWidget(QLabel("Recortar final:"))
         trim_row.addWidget(self.trim_spin)
@@ -186,6 +199,7 @@ class PoseAnalysisWidget(QWidget):
         form.addLayout(device_row)
         form.addWidget(self.rescan_btn)
         form.addLayout(delay_row)
+        form.addLayout(clip_duration_row)
         form.addLayout(trim_row)
         form.addWidget(self.sound_checkbox)
         form.addWidget(self.output_folder_btn)
@@ -217,6 +231,8 @@ class PoseAnalysisWidget(QWidget):
         self._clip_status_timer = QTimer(self)
         self._clip_status_timer.setSingleShot(True)
         self._clip_status_timer.timeout.connect(lambda: self._set_clip_status(""))
+
+        self._update_buffer_size()
 
     # --- API pública usada por MainWindow ---
 
@@ -279,12 +295,21 @@ class PoseAnalysisWidget(QWidget):
         self.delay_spin.setValue(int(seconds))
         self.delay_slider.blockSignals(False)
         self.delay_spin.blockSignals(False)
+        self._update_buffer_size()
+
+    def set_clip_duration(self, seconds: float) -> None:
+        self.clip_duration_seconds = seconds
+        self.clip_duration_spin.blockSignals(True)
+        self.clip_duration_spin.setValue(int(seconds))
+        self.clip_duration_spin.blockSignals(False)
+        self._update_buffer_size()
 
     def set_trim(self, seconds: float) -> None:
         self.trim_seconds = seconds
         self.trim_spin.blockSignals(True)
         self.trim_spin.setValue(int(seconds))
         self.trim_spin.blockSignals(False)
+        self._update_buffer_size()
 
     def set_output_folder(self, folder: str) -> None:
         self.output_folder = folder
@@ -347,6 +372,7 @@ class PoseAnalysisWidget(QWidget):
         self.delay_spin.setValue(value)
         self.delay_spin.blockSignals(False)
         self.delay_seconds = float(value)
+        self._update_buffer_size()
         self.delay_changed.emit(self.delay_seconds)
 
     def _on_delay_spin_changed(self, value: int) -> None:
@@ -354,11 +380,23 @@ class PoseAnalysisWidget(QWidget):
         self.delay_slider.setValue(value)
         self.delay_slider.blockSignals(False)
         self.delay_seconds = float(value)
+        self._update_buffer_size()
         self.delay_changed.emit(self.delay_seconds)
+
+    def _on_clip_duration_changed(self, value: int) -> None:
+        self.clip_duration_seconds = float(value)
+        self._update_buffer_size()
+        self.clip_duration_changed.emit(self.clip_duration_seconds)
 
     def _on_trim_changed(self, value: int) -> None:
         self.trim_seconds = float(value)
+        self._update_buffer_size()
         self.trim_changed.emit(self.trim_seconds)
+
+    def _update_buffer_size(self) -> None:
+        needed = max(self.delay_seconds, self.clip_duration_seconds + self.trim_seconds) + 2.0
+        self.buffer.set_max_seconds(needed)
+        self.pose_history.set_max_seconds(needed)
 
     def _on_sound_toggled(self, checked: bool) -> None:
         self.sound_enabled = checked
@@ -413,7 +451,7 @@ class PoseAnalysisWidget(QWidget):
             return
         exporter = PoseClipExporter(self.output_folder)
         self._export_worker = PoseClipExportWorker(
-            exporter, self.buffer, self.delay_seconds, self.trim_seconds
+            exporter, self.buffer, self.clip_duration_seconds, self.trim_seconds
         )
         self._export_worker.finished_ok.connect(self._on_export_finished)
         self._export_worker.failed.connect(self._on_export_failed)
