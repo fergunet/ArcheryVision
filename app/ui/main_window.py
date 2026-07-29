@@ -4,13 +4,15 @@ import logging
 import os
 import time
 
-from PySide6.QtCore import QThread, Qt, QTimer, Signal
+from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import (
-    QDockWidget,
+    QHBoxLayout,
     QMainWindow,
     QMdiArea,
     QMessageBox,
+    QTabWidget,
     QToolBar,
+    QWidget,
 )
 
 from app.camera.manager import CameraManager, MAX_CAMERAS
@@ -21,6 +23,7 @@ from app.recording.exporter import ClipExporter
 from app.sync.clock import SyncClock
 from app.ui.camera_view import CameraSubWindow
 from app.ui.controls_panel import ControlsPanel, DEFAULT_CLIP_SECONDS
+from app.ui.pose_panel import PoseAnalysisWidget
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +88,24 @@ class MainWindow(QMainWindow):
         self._persist_timers: dict[int, QTimer] = {}
         self._clip_status_timer = QTimer(self)
         self._clip_status_timer.setSingleShot(True)
+        self._pose_persist_timer = QTimer(self)
+        self._pose_persist_timer.setSingleShot(True)
+        self._pose_persist_timer.timeout.connect(self._persist_pose_settings)
 
         self.mdi_area = QMdiArea()
-        self.setCentralWidget(self.mdi_area)
+        self.controls_panel = ControlsPanel()
+        self.pose_panel = PoseAnalysisWidget()
+
+        multicam_tab = QWidget()
+        multicam_layout = QHBoxLayout(multicam_tab)
+        multicam_layout.addWidget(self.mdi_area, 3)
+        multicam_layout.addWidget(self.controls_panel, 1)
+
+        self.tab_widget = QTabWidget()
+        self.tab_widget.addTab(multicam_tab, "Multicámara")
+        self.tab_widget.addTab(self.pose_panel, "Análisis de postura")
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+        self.setCentralWidget(self.tab_widget)
 
         self.sub_windows: list[CameraSubWindow] = []
         for i in range(MAX_CAMERAS):
@@ -96,19 +114,18 @@ class MainWindow(QMainWindow):
             self.mdi_area.addSubWindow(sub)
             self.sub_windows.append(sub)
 
-        self.controls_panel = ControlsPanel()
-        self.controls_dock = QDockWidget("Controles", self)
-        self.controls_dock.setWidget(self.controls_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.controls_dock)
-
         toolbar = QToolBar("Principal", self)
         toolbar.setMovable(False)
         self.save_clip_action = toolbar.addAction("💾 Guardar clip")
         self.save_clip_action.triggered.connect(self._on_save_clip)
-        toolbar.addAction(self.controls_dock.toggleViewAction())
+        self.toggle_controls_action = toolbar.addAction("Controles")
+        self.toggle_controls_action.setCheckable(True)
+        self.toggle_controls_action.setChecked(True)
+        self.toggle_controls_action.toggled.connect(self._on_toggle_controls)
         self.addToolBar(toolbar)
 
         self._refresh_available_devices()
+        self.pose_panel.refresh_devices()
         restored_geometry = self._restore_config()
         self._apply_restored_devices_to_ui()
         for sub in self.sub_windows:
@@ -142,6 +159,15 @@ class MainWindow(QMainWindow):
         self.hrm_client.bpm_updated.connect(self._on_bpm_updated)
 
         self._clip_status_timer.timeout.connect(lambda: cp.set_clip_status(""))
+
+        pp = self.pose_panel
+        pp.view_mode_changed.connect(self._persist_pose_settings)
+        pp.handedness_changed.connect(self._persist_pose_settings)
+        pp.device_changed.connect(self._persist_pose_settings)
+        pp.output_folder_changed.connect(self._persist_pose_settings)
+        pp.sound_enabled_changed.connect(self._persist_pose_settings)
+        pp.delay_changed.connect(self._schedule_pose_persist)
+        pp.trim_changed.connect(self._schedule_pose_persist)
 
     def _refresh_available_devices(self) -> None:
         devices = self.camera_manager.available_devices()
@@ -209,9 +235,9 @@ class MainWindow(QMainWindow):
         Devuelve True si había geometría de ventana guardada, para que el
         llamador decida si hace falta el tileSubWindows() por defecto.
         """
-        dock_visible = self.config_store.load_controls_dock_visible()
-        if dock_visible is not None:
-            self.controls_dock.setVisible(dock_visible)
+        controls_visible = self.config_store.load_controls_visible()
+        if controls_visible is not None:
+            self.toggle_controls_action.setChecked(controls_visible)
 
         clip_settings = self.config_store.load_clip_settings()
         if clip_settings is not None:
@@ -220,6 +246,17 @@ class MainWindow(QMainWindow):
             self.controls_panel.set_clip_duration(self.clip_duration_seconds)
             self.controls_panel.set_clip_trim(self.clip_trim_seconds)
         self._update_bpm_history_size()
+
+        pose_settings = self.config_store.load_pose_settings()
+        if pose_settings is not None:
+            pp = self.pose_panel
+            pp.set_view_mode(pose_settings["view_mode"])
+            pp.set_handedness(pose_settings["handedness"])
+            pp.set_device(pose_settings["device_index"])
+            pp.set_delay(pose_settings["delay_seconds"])
+            pp.set_trim(pose_settings["trim_seconds"])
+            pp.set_output_folder(pose_settings["output_folder"])
+            pp.set_sound_enabled(pose_settings["sound_enabled"])
 
         any_geometry_restored = False
         for slot in self.camera_manager.slots:
@@ -276,6 +313,52 @@ class MainWindow(QMainWindow):
 
     def _on_output_folder_changed(self, folder: str) -> None:
         self.output_folder = folder
+
+    def _schedule_pose_persist(self, *_args) -> None:
+        self._pose_persist_timer.start(400)
+
+    def _persist_pose_settings(self, *_args) -> None:
+        pp = self.pose_panel
+        self.config_store.save_pose_settings(
+            pp.view_mode,
+            pp.handedness,
+            pp.device_index,
+            pp.delay_seconds,
+            pp.trim_seconds,
+            pp.output_folder,
+            pp.sound_enabled,
+        )
+
+    def _on_toggle_controls(self, visible: bool) -> None:
+        self.controls_panel.setVisible(visible)
+        self.pose_panel.set_controls_visible(visible)
+        self.config_store.save_controls_visible(visible)
+
+    def _on_tab_changed(self, index: int) -> None:
+        if self.tab_widget.widget(index) is self.pose_panel:
+            self._pause_multicam_capture()
+            self.pose_panel.start_capture()
+        else:
+            self.pose_panel.stop_capture()
+            self._resume_multicam_capture()
+
+    def _pause_multicam_capture(self) -> None:
+        self.display_timer.stop()
+        for i, slot in enumerate(self.camera_manager.slots):
+            if slot.is_connected:
+                self.camera_manager.disconnect_slot(i)
+                self.controls_panel.set_slot_status(i, False)
+        self.save_clip_action.setEnabled(False)
+
+    def _resume_multicam_capture(self) -> None:
+        for i, slot in enumerate(self.camera_manager.slots):
+            if slot.device_index is not None and not slot.is_connected:
+                restored_slot = self.camera_manager.assign_device(i, slot.device_index)
+                if restored_slot.worker is not None:
+                    restored_slot.worker.error.connect(self._on_camera_error)
+                self.controls_panel.set_slot_status(i, restored_slot.is_connected)
+        self.display_timer.start(DISPLAY_REFRESH_MS)
+        self.save_clip_action.setEnabled(True)
 
     def _update_displays(self) -> None:
         if not self.sync_clock.is_playing:
@@ -364,7 +447,6 @@ class MainWindow(QMainWindow):
         self.bpm_history.push(time.monotonic(), bpm)
 
     def closeEvent(self, event) -> None:
-        self.config_store.save_controls_dock_visible(self.controls_dock.isVisible())
         for sub in self.sub_windows:
             geo = sub.normal_geometry
             self.config_store.save_window_geometry(
@@ -372,6 +454,7 @@ class MainWindow(QMainWindow):
             )
         self.config_store.sync()
         self.display_timer.stop()
+        self.pose_panel.stop_capture()
         self.camera_manager.shutdown()
         self.hrm_client.stop()
         super().closeEvent(event)
