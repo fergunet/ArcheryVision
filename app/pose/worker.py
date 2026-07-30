@@ -27,6 +27,17 @@ CAPTURE_HEIGHT = 480
 TARGET_FPS = 20.0
 
 
+def _rotate_frame(frame, degrees: int):
+    degrees = degrees % 360
+    if degrees == 90:
+        return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    if degrees == 180:
+        return cv2.rotate(frame, cv2.ROTATE_180)
+    if degrees == 270:
+        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return frame
+
+
 class PoseWorker(QThread):
     error = Signal(str)
     result_ready = Signal(object)  # PoseAnalysisResult | None
@@ -38,6 +49,7 @@ class PoseWorker(QThread):
         handedness: Handedness,
         buffer: FrameRingBuffer,
         pose_history: PoseResultHistory,
+        rotation_degrees: int = 0,
     ):
         super().__init__()
         self.device_index = device_index
@@ -45,6 +57,7 @@ class PoseWorker(QThread):
         self.handedness = handedness
         self.buffer = buffer
         self.pose_history = pose_history
+        self.rotation_degrees = rotation_degrees
         self._running = False
 
     def run(self) -> None:
@@ -67,6 +80,15 @@ class PoseWorker(QThread):
                     self.error.emit("Pérdida de señal de la cámara")
                     time.sleep(0.2)
                     continue
+
+                # Se rota el frame crudo antes de detectar la pose (no solo
+                # al mostrarlo): si la cámara está montada físicamente en
+                # otra orientación, los criterios de ángulo (p.ej.
+                # verticalidad de columna) necesitan ver la imagen ya
+                # corregida para no confundir una cámara girada con una
+                # postura incorrecta.
+                if self.rotation_degrees:
+                    frame = _rotate_frame(frame, self.rotation_degrees)
 
                 ts = time.monotonic()
                 timestamp_ms = int(ts * 1000)

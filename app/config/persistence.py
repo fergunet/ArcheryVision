@@ -110,6 +110,7 @@ class ConfigStore:
         trim_seconds: float,
         output_folder: str,
         sound_enabled: bool,
+        rotation_degrees: int,
     ) -> None:
         self._settings.beginGroup("pose")
         self._settings.setValue("view_mode", view_mode.value)
@@ -120,6 +121,7 @@ class ConfigStore:
         self._settings.setValue("trim_seconds", trim_seconds)
         self._settings.setValue("output_folder", output_folder)
         self._settings.setValue("sound_enabled", sound_enabled)
+        self._settings.setValue("rotation_degrees", rotation_degrees)
         self._settings.endGroup()
 
     def load_pose_settings(self) -> dict | None:
@@ -137,6 +139,7 @@ class ConfigStore:
                 "trim_seconds": self._settings.value("trim_seconds", type=float),
                 "output_folder": self._settings.value("output_folder", type=str),
                 "sound_enabled": self._settings.value("sound_enabled", type=bool),
+                "rotation_degrees": self._settings.value("rotation_degrees", type=int),
             }
         self._settings.endGroup()
         return result

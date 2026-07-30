@@ -166,6 +166,7 @@ class MainWindow(QMainWindow):
         pp.device_changed.connect(self._persist_pose_settings)
         pp.output_folder_changed.connect(self._persist_pose_settings)
         pp.sound_enabled_changed.connect(self._persist_pose_settings)
+        pp.rotation_changed.connect(self._persist_pose_settings)
         pp.delay_changed.connect(self._schedule_pose_persist)
         pp.clip_duration_changed.connect(self._schedule_pose_persist)
         pp.trim_changed.connect(self._schedule_pose_persist)
@@ -259,6 +260,7 @@ class MainWindow(QMainWindow):
             pp.set_trim(pose_settings["trim_seconds"])
             pp.set_output_folder(pose_settings["output_folder"])
             pp.set_sound_enabled(pose_settings["sound_enabled"])
+            pp.set_rotation(pose_settings["rotation_degrees"])
 
         any_geometry_restored = False
         for slot in self.camera_manager.slots:
@@ -330,6 +332,7 @@ class MainWindow(QMainWindow):
             pp.trim_seconds,
             pp.output_folder,
             pp.sound_enabled,
+            pp.rotation_degrees,
         )
 
     def _on_save_clip_action(self) -> None:

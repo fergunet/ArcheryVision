@@ -86,6 +86,7 @@ class PoseAnalysisWidget(QWidget):
     trim_changed = Signal(float)
     output_folder_changed = Signal(str)
     sound_enabled_changed = Signal(bool)
+    rotation_changed = Signal(int)
 
     def __init__(self):
         super().__init__()
@@ -95,6 +96,7 @@ class PoseAnalysisWidget(QWidget):
         self.delay_seconds = 0.0
         self.clip_duration_seconds = float(DEFAULT_CLIP_SECONDS)
         self.trim_seconds = 0.0
+        self.rotation_degrees = 0
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "posturas")
         self.sound_enabled = False
 
@@ -126,6 +128,11 @@ class PoseAnalysisWidget(QWidget):
         self.device_combo.currentIndexChanged.connect(self._on_device_changed)
         self.rescan_btn = QPushButton("Buscar cámaras")
         self.rescan_btn.clicked.connect(self.refresh_devices)
+
+        self.rotate_left_btn = QPushButton("⟲ 90°")
+        self.rotate_right_btn = QPushButton("⟳ 90°")
+        self.rotate_left_btn.clicked.connect(lambda: self._rotate(-90))
+        self.rotate_right_btn.clicked.connect(lambda: self._rotate(90))
 
         self.delay_slider = QSlider(Qt.Horizontal)
         self.delay_slider.setRange(0, int(MAX_DELAY_SECONDS_POSE))
@@ -181,6 +188,11 @@ class PoseAnalysisWidget(QWidget):
         device_row.addWidget(QLabel("Cámara:"))
         device_row.addWidget(self.device_combo)
 
+        rotate_row = QHBoxLayout()
+        rotate_row.addWidget(QLabel("Rotación:"))
+        rotate_row.addWidget(self.rotate_left_btn)
+        rotate_row.addWidget(self.rotate_right_btn)
+
         delay_row = QHBoxLayout()
         delay_row.addWidget(QLabel("Delay:"))
         delay_row.addWidget(self.delay_slider)
@@ -198,6 +210,7 @@ class PoseAnalysisWidget(QWidget):
         form.addLayout(hand_row)
         form.addLayout(device_row)
         form.addWidget(self.rescan_btn)
+        form.addLayout(rotate_row)
         form.addLayout(delay_row)
         form.addLayout(clip_duration_row)
         form.addLayout(trim_row)
@@ -325,12 +338,28 @@ class PoseAnalysisWidget(QWidget):
         self.sound_checkbox.setChecked(enabled)
         self.sound_checkbox.blockSignals(False)
 
+    def set_rotation(self, degrees: int) -> None:
+        self.rotation_degrees = degrees % 360
+        if self.worker is not None:
+            self.worker.rotation_degrees = self.rotation_degrees
+
     # --- internos ---
+
+    def _rotate(self, delta_degrees: int) -> None:
+        self.rotation_degrees = (self.rotation_degrees + delta_degrees) % 360
+        if self.worker is not None:
+            self.worker.rotation_degrees = self.rotation_degrees
+        self.rotation_changed.emit(self.rotation_degrees)
 
     def _start_worker(self) -> None:
         self._stop_worker()
         self.worker = PoseWorker(
-            self.device_index, self.view_mode, self.handedness, self.buffer, self.pose_history
+            self.device_index,
+            self.view_mode,
+            self.handedness,
+            self.buffer,
+            self.pose_history,
+            self.rotation_degrees,
         )
         self.worker.error.connect(self._on_worker_error)
         self.worker.start()
