@@ -87,3 +87,11 @@ class FrameRingBuffer:
     def is_empty(self) -> bool:
         with self._lock:
             return not self._timestamps
+
+    def clear(self) -> None:
+        """Libera los frames guardados sin perder el tamaño/capacidad
+        configurados (útil al desconectar una cámara temporalmente, para no
+        retener en memoria hasta minutos de vídeo que ya no se van a usar)."""
+        with self._lock:
+            self._timestamps.clear()
+            self._frames.clear()

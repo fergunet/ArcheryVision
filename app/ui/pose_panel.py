@@ -8,6 +8,7 @@ import logging
 import os
 import time
 
+import cv2
 from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QSoundEffect
@@ -87,6 +88,7 @@ class PoseAnalysisWidget(QWidget):
     output_folder_changed = Signal(str)
     sound_enabled_changed = Signal(bool)
     rotation_changed = Signal(int)
+    mirror_enabled_changed = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -97,6 +99,7 @@ class PoseAnalysisWidget(QWidget):
         self.clip_duration_seconds = float(DEFAULT_CLIP_SECONDS)
         self.trim_seconds = 0.0
         self.rotation_degrees = 0
+        self.mirror_enabled = False
         self.output_folder = os.path.join(os.path.expanduser("~"), "ArcheryVision", "posturas")
         self.sound_enabled = False
 
@@ -156,6 +159,9 @@ class PoseAnalysisWidget(QWidget):
         self.sound_checkbox = QCheckBox("Aviso sonoro")
         self.sound_checkbox.toggled.connect(self._on_sound_toggled)
 
+        self.mirror_checkbox = QCheckBox("Modo espejo")
+        self.mirror_checkbox.toggled.connect(self._on_mirror_toggled)
+
         self.output_folder_label = QLabel("Carpeta no seleccionada")
         self.output_folder_btn = QPushButton("Elegir carpeta de salida")
         self.output_folder_btn.clicked.connect(self._choose_output_folder)
@@ -211,6 +217,7 @@ class PoseAnalysisWidget(QWidget):
         form.addLayout(device_row)
         form.addWidget(self.rescan_btn)
         form.addLayout(rotate_row)
+        form.addWidget(self.mirror_checkbox)
         form.addLayout(delay_row)
         form.addLayout(clip_duration_row)
         form.addLayout(trim_row)
@@ -343,6 +350,12 @@ class PoseAnalysisWidget(QWidget):
         if self.worker is not None:
             self.worker.rotation_degrees = self.rotation_degrees
 
+    def set_mirror_enabled(self, enabled: bool) -> None:
+        self.mirror_enabled = enabled
+        self.mirror_checkbox.blockSignals(True)
+        self.mirror_checkbox.setChecked(enabled)
+        self.mirror_checkbox.blockSignals(False)
+
     # --- internos ---
 
     def _rotate(self, delta_degrees: int) -> None:
@@ -435,6 +448,10 @@ class PoseAnalysisWidget(QWidget):
         self.sound_enabled = checked
         self.sound_enabled_changed.emit(checked)
 
+    def _on_mirror_toggled(self, checked: bool) -> None:
+        self.mirror_enabled = checked
+        self.mirror_enabled_changed.emit(checked)
+
     def _choose_output_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Carpeta de salida de posturas")
         if folder:
@@ -446,7 +463,14 @@ class PoseAnalysisWidget(QWidget):
         target_time = time.monotonic() - self.delay_seconds
         timed_frame = self.buffer.get_nearest(target_time)
         if timed_frame is not None:
-            self.video_label.set_frame(timed_frame.frame, 0)
+            # El espejo es puramente de visualización: se aplica aquí, sobre
+            # el frame ya analizado/grabado, y nunca antes de MediaPipe ni
+            # antes de guardarlo en el buffer (así ni el análisis de postura
+            # ni el vídeo exportado se ven afectados).
+            frame = timed_frame.frame
+            if self.mirror_enabled:
+                frame = cv2.flip(frame, 1)
+            self.video_label.set_frame(frame, 0)
 
         result = self.pose_history.get_nearest(target_time)
         self._update_status_panel(result)

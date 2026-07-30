@@ -167,6 +167,7 @@ class MainWindow(QMainWindow):
         pp.output_folder_changed.connect(self._persist_pose_settings)
         pp.sound_enabled_changed.connect(self._persist_pose_settings)
         pp.rotation_changed.connect(self._persist_pose_settings)
+        pp.mirror_enabled_changed.connect(self._persist_pose_settings)
         pp.delay_changed.connect(self._schedule_pose_persist)
         pp.clip_duration_changed.connect(self._schedule_pose_persist)
         pp.trim_changed.connect(self._schedule_pose_persist)
@@ -261,6 +262,7 @@ class MainWindow(QMainWindow):
             pp.set_output_folder(pose_settings["output_folder"])
             pp.set_sound_enabled(pose_settings["sound_enabled"])
             pp.set_rotation(pose_settings["rotation_degrees"])
+            pp.set_mirror_enabled(pose_settings["mirror_enabled"])
 
         any_geometry_restored = False
         for slot in self.camera_manager.slots:
@@ -333,6 +335,7 @@ class MainWindow(QMainWindow):
             pp.output_folder,
             pp.sound_enabled,
             pp.rotation_degrees,
+            pp.mirror_enabled,
         )
 
     def _on_save_clip_action(self) -> None:
@@ -360,6 +363,10 @@ class MainWindow(QMainWindow):
             if slot.is_connected:
                 self.camera_manager.disconnect_slot(i)
                 self.controls_panel.set_slot_status(i, False)
+            # Libera los frames retenidos (hasta ~60-120 s por cámara si el
+            # usuario había configurado delays/duración de clip altos) para
+            # no acumular memoria mientras se usa la pestaña de postura.
+            slot.buffer.clear()
 
     def _resume_multicam_capture(self) -> None:
         for i, slot in enumerate(self.camera_manager.slots):

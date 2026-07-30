@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 CAPTURE_WIDTH = 640
 CAPTURE_HEIGHT = 480
 TARGET_FPS = 20.0
+FRAME_INTERVAL_SECONDS = 1.0 / TARGET_FPS
 
 
 def _rotate_frame(frame, degrees: int):
@@ -75,6 +76,7 @@ class PoseWorker(QThread):
         self._running = True
         try:
             while self._running:
+                loop_start = time.monotonic()
                 ok, frame = cap.read()
                 if not ok:
                     self.error.emit("Pérdida de señal de la cámara")
@@ -111,6 +113,16 @@ class PoseWorker(QThread):
                 self.buffer.push(ts, annotated)
                 self.pose_history.push(ts, analysis_result)
                 self.result_ready.emit(analysis_result)
+
+                # Limita el ritmo del bucle a TARGET_FPS: la cámara o la
+                # inferencia podrían ir más rápido que eso (algunas webcams
+                # ignoran cap.set(CAP_PROP_FPS)), y sin este freno el hilo
+                # satura la CPU sin descanso, lo que en equipos modestos
+                # puede llegar a notarse como que todo el sistema se congela.
+                elapsed = time.monotonic() - loop_start
+                remaining = FRAME_INTERVAL_SECONDS - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
         finally:
             landmarker.close()
             cap.release()
