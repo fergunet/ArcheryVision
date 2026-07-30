@@ -237,7 +237,11 @@ class PoseAnalysisWidget(QWidget):
     # --- API pública usada por MainWindow ---
 
     def refresh_devices(self) -> None:
-        devices = detect_available_cameras()
+        # Si hay un PoseWorker activo, no se vuelve a sondear su cámara con
+        # un segundo cv2.VideoCapture: eso puede corromper/mezclar los
+        # frames que recibe el hilo de captura ya en marcha.
+        exclude = {self.worker.device_index} if self.worker is not None else set()
+        devices = detect_available_cameras(exclude=exclude)
         current = self.device_combo.currentData()
         self.device_combo.blockSignals(True)
         self.device_combo.clear()
