@@ -23,13 +23,27 @@ TARGET_HEIGHT = 360
 MAX_PROBE_INDEX = 10
 
 
-def detect_available_cameras(max_probe_index: int = MAX_PROBE_INDEX) -> list[int]:
+def detect_available_cameras(
+    max_probe_index: int = MAX_PROBE_INDEX, exclude: set[int] | None = None
+) -> list[int]:
     """Prueba índices de dispositivo y devuelve los que abren correctamente,
-    hasta un máximo de MAX_CAMERAS (RF-1.1)."""
+    hasta un máximo de MAX_CAMERAS (RF-1.1).
+
+    `exclude` son índices que ya se sabe que están abiertos y en uso (por
+    ejemplo, por un CameraWorker o un PoseWorker activos): no se intentan
+    volver a abrir para sondearlos, porque abrir un segundo
+    `cv2.VideoCapture` sobre una cámara ya en uso puede corromper o mezclar
+    los frames que recibe el hilo que ya la tiene abierta. Se devuelven
+    igualmente como disponibles, sin sondeo.
+    """
+    exclude = exclude or set()
     found: list[int] = []
     for index in range(max_probe_index):
         if len(found) >= MAX_CAMERAS:
             break
+        if index in exclude:
+            found.append(index)
+            continue
         cap = cv2.VideoCapture(index, cv2.CAP_ANY)
         try:
             if cap.isOpened():
@@ -129,12 +143,12 @@ class CameraManager:
         de vuelta los dispositivos ya conectados para no perderlos del
         desplegable al pulsar "Buscar cámaras".
         """
-        probed = set(detect_available_cameras())
         connected = {
             slot.device_index
             for slot in self.slots
             if slot.is_connected and slot.device_index is not None
         }
+        probed = set(detect_available_cameras(exclude=connected))
         return sorted(probed | connected)
 
     def assign_device(self, slot_index: int, device_index: int | None) -> CameraSlot:
