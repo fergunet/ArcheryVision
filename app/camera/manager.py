@@ -6,6 +6,8 @@ RNF-1  Rendimiento: 4 streams >= 30 fps, resolución mínima 720p.
 """
 
 import logging
+import os
+import sys
 import time
 
 import cv2
@@ -35,24 +37,67 @@ def detect_available_cameras(
     `cv2.VideoCapture` sobre una cámara ya en uso puede corromper o mezclar
     los frames que recibe el hilo que ya la tiene abierta. Se devuelven
     igualmente como disponibles, sin sondeo.
+
+    Algunas cámaras USB exponen más de un nodo de vídeo para el mismo
+    sensor físico (p.ej. un nodo de captura y otro de metadatos UVC), y
+    ambos superan igualmente el sondeo. Para no listar la misma cámara
+    física dos veces, si dos índices reportan el mismo nombre de
+    dispositivo (ver `get_camera_name`) solo se conserva el primero; esa
+    comprobación no cuenta como un intento de apertura, así que es segura
+    incluso para los índices en `exclude`.
     """
     exclude = exclude or set()
     found: list[int] = []
+    seen_names: set[str] = set()
+
+    def register(idx: int) -> None:
+        name = get_camera_name(idx)
+        if name:
+            if name in seen_names:
+                return
+            seen_names.add(name)
+        found.append(idx)
+
     for index in range(max_probe_index):
         if len(found) >= MAX_CAMERAS:
             break
         if index in exclude:
-            found.append(index)
+            register(index)
             continue
         cap = cv2.VideoCapture(index, cv2.CAP_ANY)
         try:
             if cap.isOpened():
                 ok, _ = cap.read()
                 if ok:
-                    found.append(index)
+                    register(index)
         finally:
             cap.release()
     return found
+
+
+def get_camera_name(index: int) -> str | None:
+    """Intenta averiguar el nombre/marca de la cámara en `index`, para
+    mostrarlo junto al número de dispositivo. Depende de la plataforma y no
+    siempre es posible (dependencia opcional no instalada, API del sistema
+    no disponible, índice sin cámara real asociada): en ese caso devuelve
+    None y el número de dispositivo se muestra solo.
+    """
+    try:
+        if sys.platform.startswith("linux"):
+            path = f"/sys/class/video4linux/video{index}/name"
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    name = f.read().strip()
+                    return name or None
+        elif sys.platform == "win32":
+            from pygrabber.dshow_graph import FilterGraph  # dependencia opcional, solo Windows
+
+            devices = FilterGraph().get_input_devices()
+            if 0 <= index < len(devices):
+                return devices[index]
+    except Exception:  # noqa: BLE001 - no poder saber el nombre no debe romper el listado
+        logger.debug("No se pudo obtener el nombre de la cámara %d", index, exc_info=True)
+    return None
 
 
 class CameraWorker(QThread):

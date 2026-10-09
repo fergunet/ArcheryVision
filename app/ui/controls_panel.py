@@ -194,6 +194,11 @@ class ControlsPanel(QWidget):
         self.clip_status_label.setWordWrap(True)
         self.clip_status_label.hide()
 
+        self.detected_cameras_label = QLabel("")
+        self.detected_cameras_label.setWordWrap(True)
+        self.detected_cameras_label.setStyleSheet("color: gray; font-size: 11px;")
+        self.detected_cameras_label.hide()
+
         clip_row = QHBoxLayout()
         clip_row.addWidget(QLabel("Duración del clip:"))
         clip_row.addWidget(self.clip_duration_spin)
@@ -216,6 +221,7 @@ class ControlsPanel(QWidget):
         layout.addWidget(self.output_folder_btn)
         layout.addWidget(self.output_folder_label)
         layout.addWidget(self.save_clip_btn)
+        layout.addWidget(self.detected_cameras_label)
         layout.addWidget(self.clip_status_label)
         layout.addStretch()
         layout.addWidget(self.reset_config_btn)
@@ -224,6 +230,13 @@ class ControlsPanel(QWidget):
     def update_available_devices(self, devices: list[int]) -> None:
         for slot in self.slot_controls:
             slot.set_available_devices(devices)
+
+    def set_detected_cameras_info(self, lines: list[str]) -> None:
+        if not lines:
+            self.detected_cameras_label.setText("No se ha detectado ninguna cámara.")
+        else:
+            self.detected_cameras_label.setText("\n".join(lines))
+        self.detected_cameras_label.setVisible(True)
 
     def set_slot_status(self, slot_index: int, connected: bool) -> None:
         self.slot_controls[slot_index].set_status(connected)

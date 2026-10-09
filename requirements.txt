@@ -3,3 +3,4 @@ opencv-contrib-python>=4.9
 bleak>=0.21
 numpy>=1.26
 mediapipe>=1.0.0
+pygrabber>=0.2; sys_platform == "win32"

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.camera.manager import CameraManager, MAX_CAMERAS
+from app.camera.manager import CameraManager, MAX_CAMERAS, get_camera_name
 from app.config.persistence import ConfigStore
 from app.hrm.ble_client import HRMClient
 from app.hrm.history import BpmHistory
@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
     def _refresh_available_devices(self) -> None:
         devices = self.camera_manager.available_devices()
         self.controls_panel.update_available_devices(devices)
+        self._update_detected_cameras_info(devices)
 
     def _on_rescan_clicked(self) -> None:
         """Botón "Buscar cámaras": a veces, al arrancar la app, no se
@@ -191,6 +192,17 @@ class MainWindow(QMainWindow):
             self.controls_panel.set_slot_status(i, False)
             sub.view.clear()
         self.controls_panel.update_available_devices(devices)
+        self._update_detected_cameras_info(devices)
+
+    def _update_detected_cameras_info(self, devices: list[int]) -> None:
+        lines = []
+        for device_index in devices:
+            name = get_camera_name(device_index)
+            if name:
+                lines.append(f"Dispositivo {device_index}: {name}")
+            else:
+                lines.append(f"Dispositivo {device_index}")
+        self.controls_panel.set_detected_cameras_info(lines)
 
     def _on_device_changed(self, slot_index: int, device_index) -> None:
         slot = self.camera_manager.assign_device(slot_index, device_index)
