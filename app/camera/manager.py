@@ -166,6 +166,25 @@ class CameraManager:
             slot.worker.stop()
             slot.worker = None
 
+    def rescan(self) -> list[int]:
+        """Desconecta todas las cámaras y vuelve a sondear desde cero.
+
+        `available_devices()` evita reabrir las cámaras ya conectadas (para
+        no corromper el stream del hilo que las tiene en uso), pero eso
+        también significa que nunca se vuelve a comprobar de verdad su
+        estado real. Si al arrancar la app alguna cámara no se detectó por
+        una condición de carrera con el sistema operativo, seguiría sin
+        aparecer en sondeos posteriores mientras otro slot la tenga
+        "reservada". Para el botón "Buscar cámaras" (una acción explícita
+        del usuario, no el sondeo pasivo de fondo) se fuerza aquí una
+        desconexión completa antes de sondear, de forma que el sondeo
+        pueda abrir y comprobar de verdad cada índice de dispositivo.
+        """
+        for i in range(len(self.slots)):
+            self.disconnect_slot(i)
+        time.sleep(0.3)  # margen para que el driver libere los dispositivos
+        return detect_available_cameras()
+
     def shutdown(self) -> None:
         for i in range(len(self.slots)):
             self.disconnect_slot(i)

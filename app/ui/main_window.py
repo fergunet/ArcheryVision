@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
         cp.name_changed.connect(self._on_name_changed)
         cp.play_clicked.connect(self.sync_clock.play)
         cp.pause_clicked.connect(self.sync_clock.pause)
-        cp.rescan_clicked.connect(self._refresh_available_devices)
+        cp.rescan_clicked.connect(self._on_rescan_clicked)
         cp.save_clip_clicked.connect(self._on_save_clip)
         cp.clip_duration_changed.connect(self._on_clip_duration_changed)
         cp.output_folder_changed.connect(self._on_output_folder_changed)
@@ -174,6 +174,22 @@ class MainWindow(QMainWindow):
 
     def _refresh_available_devices(self) -> None:
         devices = self.camera_manager.available_devices()
+        self.controls_panel.update_available_devices(devices)
+
+    def _on_rescan_clicked(self) -> None:
+        """Botón "Buscar cámaras": a veces, al arrancar la app, no se
+        detectan todas las cámaras físicamente conectadas (condición de
+        carrera con el sistema operativo al enumerar dispositivos). Para
+        recuperarse de eso, se desconectan todas las cámaras activas, se
+        limpian los desplegables de selección y se vuelve a sondear desde
+        cero, en vez de limitarse a añadir a la lista lo que se detecte
+        de nuevo.
+        """
+        devices = self.camera_manager.rescan()
+        for i, sub in enumerate(self.sub_windows):
+            self.controls_panel.set_slot_device(i, None)
+            self.controls_panel.set_slot_status(i, False)
+            sub.view.clear()
         self.controls_panel.update_available_devices(devices)
 
     def _on_device_changed(self, slot_index: int, device_index) -> None:
